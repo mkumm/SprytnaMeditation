@@ -25,9 +25,10 @@ export default function App() {
   const scrollTimeoutRef = useRef(null);
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-    });
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    Audio.Sound.createAsync(require('./assets/sounds/gong.mp3')).then(
+      ({ sound }) => { soundRef.current = sound; }
+    );
     return () => {
       if (soundRef.current) soundRef.current.unloadAsync();
       if (timerRef.current) clearInterval(timerRef.current);
@@ -46,14 +47,9 @@ export default function App() {
   }, []);
 
   async function playGong() {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync();
-    }
-    const { sound } = await Audio.Sound.createAsync(
-      require('./assets/sounds/gong.mp3')
-    );
-    soundRef.current = sound;
-    await sound.playAsync();
+    if (!soundRef.current) return;
+    await soundRef.current.setPositionAsync(0);
+    await soundRef.current.playAsync();
   }
 
   async function startTimer() {
