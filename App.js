@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Platform,
   ScrollView,
   StatusBar,
@@ -10,6 +12,7 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import * as SplashScreen from 'expo-splash-screen';
 
 const MINUTE_OPTIONS = Array.from({ length: 120 }, (_, i) => i + 1);
 const ITEM_HEIGHT = 54;
@@ -23,11 +26,23 @@ export default function App() {
   const timerRef = useRef(null);
   const scrollRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
+  const pageOpacity = useRef(new Animated.Value(1)).current;
+  const appOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
     Audio.Sound.createAsync(require('./assets/sounds/gong.mp3')).then(
-      ({ sound }) => { soundRef.current = sound; }
+      ({ sound }) => {
+        soundRef.current = sound;
+        SplashScreen.hideAsync().then(() => {
+          Animated.timing(appOpacity, {
+            toValue: 1,
+            duration: 600,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }).start();
+        });
+      }
     );
     return () => {
       if (soundRef.current) soundRef.current.unloadAsync();
@@ -56,19 +71,34 @@ export default function App() {
     await activateKeepAwakeAsync();
     await playGong();
     const totalSeconds = selectedMinutes * 60;
-    setSecondsLeft(totalSeconds);
-    setIsRunning(true);
 
-    timerRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleTimerEnd();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    Animated.timing(pageOpacity, {
+      toValue: 0,
+      duration: 450,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setSecondsLeft(totalSeconds);
+      setIsRunning(true);
+
+      timerRef.current = setInterval(() => {
+        setSecondsLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current);
+            handleTimerEnd();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      Animated.timing(pageOpacity, {
+        toValue: 1,
+        duration: 450,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    });
   }
 
   async function handleTimerEnd() {
@@ -118,11 +148,12 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
+      <Animated.View style={[styles.appContent, { opacity: appOpacity }]}>
 
       <Text style={styles.title}>Meditation Timer</Text>
 
       {!isRunning ? (
-        <>
+        <Animated.View style={{ opacity: pageOpacity, alignItems: 'center' }}>
           <View style={styles.pickerWrapper}>
             {/* Selection highlight */}
             <View
@@ -170,9 +201,9 @@ export default function App() {
           <TouchableOpacity style={styles.startButton} onPress={startTimer}>
             <Text style={styles.startButtonText}>Begin</Text>
           </TouchableOpacity>
-        </>
+        </Animated.View>
       ) : (
-        <>
+        <Animated.View style={{ opacity: pageOpacity, alignItems: 'center' }}>
           <Text style={styles.countdown}>
             {secondsLeft !== null ? formatTime(secondsLeft) : '00:00'}
           </Text>
@@ -180,8 +211,9 @@ export default function App() {
           <TouchableOpacity style={styles.stopButton} onPress={stopTimer}>
             <Text style={styles.stopButtonText}>End Session</Text>
           </TouchableOpacity>
-        </>
+        </Animated.View>
       )}
+      </Animated.View>
     </View>
   );
 }
@@ -197,6 +229,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
+  },
+  appContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     color: ACCENT,
